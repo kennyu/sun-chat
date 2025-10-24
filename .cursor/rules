@@ -1,0 +1,16 @@
+# Cursor Rules
+
+## Terminal Configuration
+- Use Git Bash instead of PowerShell for all terminal commands
+- Default shell: bash
+
+## Project Context
+- This is a React-Native + Convex + Expo Project
+- Use npm for package management
+- Follow TypeScript best practices
+
+## Code Style
+- Use TypeScript for all new code
+- Follow React-native functional component patterns
+- Use proper TypeScript types and interfaces
+- Maintain consistent code formatting
