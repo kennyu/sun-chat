@@ -9,25 +9,38 @@ export default function Chats() {
   const rooms = useQuery(api.rooms.listForCurrentUser, {});
   const createRoom = useMutation(api.rooms.create);
   const [roomName, setRoomName] = useState("");
+  const [memberIds, setMemberIds] = useState("");
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
       <Text style={{ fontSize: 20, fontWeight: "600", marginBottom: 12 }}>Chats</Text>
 
-      <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+      <View style={{ gap: 8, marginBottom: 12 }}>
         <TextInput
           placeholder="New room name"
           value={roomName}
           onChangeText={setRoomName}
-          style={{ flex: 1, borderWidth: 1, borderRadius: 8, padding: 10 }}
+          style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
+        />
+        <TextInput
+          placeholder="Member Clerk IDs (comma separated)"
+          value={memberIds}
+          onChangeText={setMemberIds}
+          style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
         />
         <Button
           title="Create"
           onPress={async () => {
-            if (!roomName.trim()) return;
+            const name = roomName.trim();
+            if (!name) return;
+            const ids = memberIds
+              .split(",")
+              .map((s) => s.trim())
+              .filter((s) => s.length > 0);
             try {
-              const id = await createRoom({ name: roomName.trim(), memberUserIds: [] });
+              const id = await createRoom({ name, memberUserIds: ids });
               setRoomName("");
+              setMemberIds("");
               router.push(`/chat/${id}`);
             } catch (e) {
               // no-op

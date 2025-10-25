@@ -2,7 +2,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { View, Text, FlatList, TextInput, Button, TouchableOpacity } from "react-native";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
 
 export default function Room() {
@@ -24,6 +24,21 @@ export default function Room() {
   const presence = useQuery(api.presence.listByRoom, roomId ? { roomId: roomId as Id<"rooms"> } : "skip");
   const setPresence = useMutation(api.presence.setPresence);
 
+  // Keep presence updated for this room
+  useEffect(() => {
+    if (!roomId) return;
+    setPresence({ roomId: roomId as Id<"rooms">, online: true, typing: false }).catch(() => {});
+    return () => {
+      setPresence({ roomId: roomId as Id<"rooms">, online: false, typing: false }).catch(() => {});
+    };
+  }, [roomId, setPresence]);
+
+  // Update typing presence when text changes
+  useEffect(() => {
+    if (!roomId) return;
+    setPresence({ roomId: roomId as Id<"rooms">, online: true, typing: text.length > 0 }).catch(() => {});
+  }, [text, roomId, setPresence]);
+
   const allMessages = useMemo(() => {
     const latest = messages ?? [];
     const older = olderPage ?? [];
@@ -32,6 +47,11 @@ export default function Room() {
     for (const m of [...older, ...latest]) map.set(m._id, m);
     return Array.from(map.values()).sort((a, b) => a.createdAt - b.createdAt);
   }, [messages, olderPage]);
+
+  const receiptCounts = useQuery(
+    api.receipts.countsForMessages,
+    allMessages.length ? { messageIds: allMessages.map((m) => m._id) } : "skip"
+  );
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
@@ -66,6 +86,9 @@ export default function Room() {
               <View style={{ paddingVertical: 8 }}>
                 <Text style={{ color: "#888", fontSize: 12 }}>{new Date(item.createdAt).toLocaleTimeString()}</Text>
                 <Text>{item.text}</Text>
+                <Text style={{ color: "#666", fontSize: 12 }}>
+                  Read: {receiptCounts?.find((r) => r.messageId === item._id)?.readCount ?? 0}
+                </Text>
                 <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
                   <TouchableOpacity onPress={() => markRead({ messageId: item._id })}>
                     <Text style={{ color: "#007aff" }}>Mark read</Text>
