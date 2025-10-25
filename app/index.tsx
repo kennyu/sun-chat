@@ -1,26 +1,23 @@
-import { SignInButton, UserButton } from "@clerk/clerk-react";
-import { Authenticated, Unauthenticated, AuthLoading, useQuery } from "convex/react";
-import { api } from "../convex/_generated/api";
+// import { ClerkProvider, useAuth } from "@clerk/clerk-react";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { ConvexReactClient } from "convex/react";
 
-function App() {
+
+import { ClerkProvider, useAuth } from '@clerk/clerk-expo'
+import { tokenCache } from '@clerk/clerk-expo/token-cache'
+import { Slot } from 'expo-router'
+
+
+const convex = new ConvexReactClient((globalThis as any).process?.env?.EXPO_PUBLIC_CONVEX_URL as string);
+const publishableKey = (globalThis as any).process?.env?.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY as string;
+
+export default function RootLayout() {
   return (
-    <main>
-      <Unauthenticated>
-        <SignInButton />
-      </Unauthenticated>
-      <Authenticated>
-        <UserButton />
-        <Content />
-      </Authenticated>
-      <AuthLoading>
-        <p>Still loading</p>
-      </AuthLoading>
-    </main>
-  );
-}
 
-function Content() {
-  const rooms = useQuery(api.rooms.listForCurrentUser, {});
-  return <div>Authenticated content: {rooms?.length}</div>;
+    <ClerkProvider tokenCache={tokenCache} publishableKey={publishableKey}>
+      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+        <Slot />
+      </ConvexProviderWithClerk>
+    </ClerkProvider>
+  )
 }
-export default App;

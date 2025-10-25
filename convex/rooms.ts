@@ -1,4 +1,5 @@
-import { query } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
+import { v } from "convex/values";
 
 export const listForCurrentUser = query({
   args: {},
@@ -16,19 +17,47 @@ export const listForCurrentUser = query({
     if (memberships.length === 0) return [];
 
     // Load rooms by membership
-    const roomIds = memberships.map((m) => m.roomId);
-    const rooms = await Promise.all(
-      roomIds.map((rid) => ctx.db
-        .query("rooms")
-        .withIndex("by_creator", (q) => q.eq("createdBy", "__any__")) // dummy to enable index usage; we'll fetch by id instead
-        .first()
-        .catch(() => null))
-    );
+    const rooms = await Promise.all(memberships.map((m) => ctx.db.get(m.roomId)));
+    return rooms.filter(Boolean);
+  },
+});
 
-    // Prefer direct get if we had ids stored as document ids; here roomId is assumed to be document id
-    const roomsDirect = await Promise.all(roomIds.map((rid) => ctx.db.get(rid as any)));
+export const create = mutation({
+  args: { name: v.string(), memberUserIds: v.array(v.string()) },
+  handler: async (ctx, { name, memberUserIds }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const subject = identity.subject;
 
-    return roomsDirect.filter(Boolean);
+    // Ensure we have a users doc for the creator and get its Id
+    let creator = await ctx.db
+      .query("users")
+      .withIndex("by_userId", (q) => q.eq("userId", subject))
+      .first();
+    if (!creator) {
+      const email = identity.email ?? undefined;
+      const displayName =
+        identity.name ?? identity.givenName ?? identity.familyName ?? email ?? "User";
+      const avatarUrl = identity.pictureUrl ?? undefined;
+      const createdId = await ctx.db.insert("users", {
+        userId: subject,
+        email,
+        displayName,
+        avatarUrl,
+      });
+      creator = await ctx.db.get(createdId);
+    }
+
+    const roomId = await ctx.db.insert("rooms", {
+      name,
+      isGroup: memberUserIds.length > 1,
+      createdBy: creator!._id,
+    });
+    const uniqueMembers = Array.from(new Set([subject, ...memberUserIds]));
+    for (const uid of uniqueMembers) {
+      await ctx.db.insert("memberships", { roomId, userId: uid });
+    }
+    return roomId;
   },
 });
 

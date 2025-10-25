@@ -13,16 +13,16 @@ const schema = defineSchema({
   rooms: defineTable({
     name: v.string(),
     isGroup: v.boolean(),
-    createdBy: v.string(),
+    createdBy: v.id("users"),
   }).index("by_creator", ["createdBy"]),
   memberships: defineTable({
-    roomId: v.string(),
+    roomId: v.id("rooms"),
     userId: v.string(),
   })
     .index("by_room", ["roomId"]) 
     .index("by_user", ["userId"]),
   messages: defineTable({
-    roomId: v.string(),
+    roomId: v.id("rooms"),
     senderId: v.string(),
     kind: v.string(),
     text: v.optional(v.string()),
@@ -30,14 +30,14 @@ const schema = defineSchema({
     createdAt: v.number(),
   }).index("by_room_time", ["roomId", "createdAt"]),
   receipts: defineTable({
-    messageId: v.string(),
+    messageId: v.id("messages"),
     userId: v.string(),
     status: v.string(),
     at: v.number(),
   }).index("by_msg", ["messageId"]),
   presence: defineTable({
-    userId: v.string(),
-    roomId: v.string(),
+    userId: v.id("users"),
+    roomId: v.id("rooms"),
     online: v.boolean(),
     typing: v.boolean(),
     updatedAt: v.number(),
