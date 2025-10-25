@@ -1,5 +1,5 @@
 {
-  "name": "whats-up",
+  "name": "sun-chat",
   "version": "0.1.0",
   "private": true,
   "main": "expo-router/entry",
@@ -33,8 +33,10 @@
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
+    "@babel/preset-react": "^7.28.5",
     "@types/react": "~19.1.1",
     "babel-plugin-inline-import": "^3.0.0",
+    "babel-preset-expo": "^54.0.6",
     "drizzle-kit": "^0.26.0",
     "typescript": "^5.9.0"
   },
