@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { View, Text, FlatList, TextInput, Button, TouchableOpacity } from "react-native";
+import { View, Text, FlatList, TextInput, Button, TouchableOpacity, StyleSheet } from "react-native";
+import { useAuth } from "@clerk/clerk-expo";
 import type { Id } from "../../convex/_generated/dataModel";
 
 export default function Room() {
   const { roomId } = useLocalSearchParams<{ roomId: string }>();
+  const { userId } = useAuth();
   const [text, setText] = useState("");
   const messages = useQuery(api.messages.listByRoom, roomId ? { roomId: roomId as Id<"rooms"> } : "skip");
   const send = useMutation(api.messages.send);
@@ -61,6 +63,12 @@ export default function Room() {
     });
   }, [presence, allUsers]);
 
+  // Get sender display name for a message
+  const getSenderName = (senderId: string) => {
+    const user = allUsers?.find((u) => u.userId === senderId);
+    return user?.displayName ?? "Unknown";
+  };
+
   return (
     <View style={{ flex: 1, padding: 16 }}>
       <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 8 }}>Room</Text>
@@ -93,12 +101,38 @@ export default function Room() {
           <FlatList
             data={allMessages}
             keyExtractor={(m) => m._id}
-            renderItem={({ item }) => (
-              <View style={{ paddingVertical: 8 }}>
-                <Text style={{ color: "#888", fontSize: 12 }}>{new Date(item.createdAt).toLocaleTimeString()}</Text>
-                <Text>{item.text}</Text>
-              </View>
-            )}
+            renderItem={({ item }) => {
+              const isCurrentUser = item.senderId === userId;
+              const senderName = getSenderName(item.senderId);
+              
+              return (
+                <View style={[
+                  styles.messageContainer,
+                  isCurrentUser ? styles.currentUserContainer : styles.otherUserContainer
+                ]}>
+                  {!isCurrentUser && (
+                    <Text style={styles.senderName}>{senderName}</Text>
+                  )}
+                  <View style={[
+                    styles.messageBubble,
+                    isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble
+                  ]}>
+                    <Text style={[
+                      styles.messageText,
+                      isCurrentUser ? styles.currentUserText : styles.otherUserText
+                    ]}>
+                      {item.text}
+                    </Text>
+                  </View>
+                  <Text style={[
+                    styles.timestamp,
+                    isCurrentUser ? styles.currentUserTimestamp : styles.otherUserTimestamp
+                  ]}>
+                    {new Date(item.createdAt).toLocaleTimeString()}
+                  </Text>
+                </View>
+              );
+            }}
           />
         </>
       )}
@@ -123,4 +157,57 @@ export default function Room() {
   );
 }
 
-
+const styles = StyleSheet.create({
+  messageContainer: {
+    marginVertical: 4,
+    paddingHorizontal: 8,
+  },
+  currentUserContainer: {
+    alignItems: "flex-end",
+  },
+  otherUserContainer: {
+    alignItems: "flex-start",
+  },
+  senderName: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 2,
+    marginLeft: 8,
+    fontWeight: "500",
+  },
+  messageBubble: {
+    maxWidth: "75%",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginBottom: 2,
+  },
+  currentUserBubble: {
+    backgroundColor: "#007aff",
+    borderBottomRightRadius: 4,
+  },
+  otherUserBubble: {
+    backgroundColor: "#e5e5ea",
+    borderBottomLeftRadius: 4,
+  },
+  messageText: {
+    fontSize: 16,
+  },
+  currentUserText: {
+    color: "#ffffff",
+  },
+  otherUserText: {
+    color: "#000000",
+  },
+  timestamp: {
+    fontSize: 11,
+    color: "#999",
+    marginHorizontal: 8,
+  },
+  currentUserTimestamp: {
+    textAlign: "right",
+  },
+  otherUserTimestamp: {
+    textAlign: "left",
+  },
+});
