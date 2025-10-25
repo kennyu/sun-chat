@@ -3,11 +3,12 @@ import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView }
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useRouter } from "expo-router";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, useClerk } from "@clerk/clerk-expo";
 
 export default function Chats() {
   const router = useRouter();
   const { userId } = useAuth();
+  const { signOut } = useClerk();
   const rooms = useQuery(api.rooms.listForCurrentUser, {});
   const createRoom = useMutation(api.rooms.create);
   const [roomName, setRoomName] = useState("");
@@ -31,6 +32,20 @@ export default function Chats() {
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
+      {/* Header with Sign Out */}
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", alignItems: "center", marginBottom: 16 }}>
+        <TouchableOpacity
+          onPress={() => signOut()}
+          style={{
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            backgroundColor: "#ff3b30",
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: "#ffffff", fontWeight: "600", fontSize: 14 }}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Members Section */}
       {otherUsers.length > 0 && (

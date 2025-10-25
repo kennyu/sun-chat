@@ -53,4 +53,22 @@ export const listByRoom = query({
   },
 });
 
+// List Clerk subject userIds that are currently online across any room
+export const listOnlineSubjects = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("presence").collect();
+    const now = Date.now();
+    const freshnessMs = 30_000; // consider online only if heartbeat within 30s
+    const onlineUserDocIds = Array.from(
+      new Set(rows.filter((r) => r.online && r.updatedAt >= now - freshnessMs).map((r) => r.userId))
+    );
+    const users = await Promise.all(onlineUserDocIds.map((id) => ctx.db.get(id)));
+    const subjects = users
+      .filter((u): u is NonNullable<typeof u> => !!u)
+      .map((u) => u.userId);
+    return Array.from(new Set(subjects));
+  },
+});
+
 
