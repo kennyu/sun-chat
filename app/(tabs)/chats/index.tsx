@@ -1,17 +1,25 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView } from "react-native";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useRouter } from "expo-router";
+import { useAuth } from "@clerk/clerk-expo";
 
 export default function Chats() {
   const router = useRouter();
+  const { userId } = useAuth();
   const rooms = useQuery(api.rooms.listForCurrentUser, {});
   const createRoom = useMutation(api.rooms.create);
   const [roomName, setRoomName] = useState("");
   const [memberIds, setMemberIds] = useState("");
   const users = useQuery(api.users.listAll, {});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  // Filter out current user from the members list
+  const otherUsers = useMemo(() => {
+    if (!users || !userId) return [];
+    return users.filter((u) => u.userId !== userId);
+  }, [users, userId]);
 
   const toggleSelect = (uid: string) => {
     setSelected((prev) => ({ ...prev, [uid]: !prev[uid] }));
@@ -23,8 +31,48 @@ export default function Chats() {
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
-      <Text style={{ fontSize: 20, fontWeight: "600", marginBottom: 12 }}>Chats</Text>
 
+      {/* Members Section */}
+      {otherUsers.length > 0 && (
+        <View style={{ 
+          marginBottom: 16, 
+          padding: 14, 
+          backgroundColor: "#ffffff", 
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: "#e0e0e0",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+          elevation: 2,
+        }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 10 }}>Members</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {otherUsers.map((u) => (
+              <TouchableOpacity
+                key={u!._id}
+                onPress={() => toggleSelect(u!.userId)}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: 20,
+                  borderWidth: 2,
+                  borderColor: selected[u!.userId] ? "#007aff" : "#ddd",
+                  marginRight: 10,
+                  backgroundColor: selected[u!.userId] ? "#e6f0ff" : "#fafafa",
+                }}
+              >
+                <Text style={{ fontWeight: selected[u!.userId] ? "600" : "500", fontSize: 15, color: selected[u!.userId] ? "#007aff" : "#333" }}>
+                  {u?.displayName ?? "User"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Create Room Section */}
       <View style={{ gap: 8, marginBottom: 12 }}>
         <TextInput
           placeholder="New room name"
@@ -32,35 +80,8 @@ export default function Chats() {
           onChangeText={setRoomName}
           style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
         />
-        {users && users.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
-            {users.map((u) => (
-              <TouchableOpacity
-                key={u!._id}
-                onPress={() => toggleSelect(u!.userId)}
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: selected[u!.userId] ? "#007aff" : "#ddd",
-                  marginRight: 8,
-                  backgroundColor: selected[u!.userId] ? "#e6f0ff" : "#fafafa",
-                }}
-              >
-                <Text style={{ fontWeight: "500" }}>{u?.displayName ?? "User"}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
-        <TextInput
-          placeholder="Member Clerk IDs (comma separated)"
-          value={memberIds}
-          onChangeText={setMemberIds}
-          style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
-        />
         <Button
-          title="Create"
+          title="Create Room"
           onPress={async () => {
             const name = roomName.trim();
             if (!name) return;
@@ -72,6 +93,7 @@ export default function Chats() {
               const id = await createRoom({ name, memberUserIds: ids });
               setRoomName("");
               setMemberIds("");
+              setSelected({});
               router.push(`/chat/${id}`);
             } catch (e) {
               // no-op
