@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 
 export const ensureUser = mutation({
   args: {},
@@ -29,6 +29,14 @@ export const ensureUser = mutation({
       avatarUrl,
     });
     return userId;
+  },
+});
+
+export const listAll = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("users").collect();
+    return rows;
   },
 });
 

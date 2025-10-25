@@ -1,4 +1,4 @@
-import { View, Text, FlatList, TouchableOpacity, TextInput, Button } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView } from "react-native";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useRouter } from "expo-router";
@@ -10,6 +10,16 @@ export default function Chats() {
   const createRoom = useMutation(api.rooms.create);
   const [roomName, setRoomName] = useState("");
   const [memberIds, setMemberIds] = useState("");
+  const users = useQuery(api.users.listAll, {});
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  const toggleSelect = (uid: string) => {
+    setSelected((prev) => ({ ...prev, [uid]: !prev[uid] }));
+    const ids = Object.entries({ ...selected, [uid]: !selected[uid] })
+      .filter(([_, v]) => v)
+      .map(([k]) => k);
+    setMemberIds(ids.join(","));
+  };
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
@@ -22,6 +32,27 @@ export default function Chats() {
           onChangeText={setRoomName}
           style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
         />
+        {users && users.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+            {users.map((u) => (
+              <TouchableOpacity
+                key={u!._id}
+                onPress={() => toggleSelect(u!.userId)}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: selected[u!.userId] ? "#007aff" : "#ddd",
+                  marginRight: 8,
+                  backgroundColor: selected[u!.userId] ? "#e6f0ff" : "#fafafa",
+                }}
+              >
+                <Text style={{ fontWeight: "500" }}>{u?.displayName ?? "User"}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
         <TextInput
           placeholder="Member Clerk IDs (comma separated)"
           value={memberIds}
