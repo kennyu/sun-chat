@@ -1,3 +1,4 @@
+import React from "react";
 import { Slot } from "expo-router";
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { ConvexReactClient } from "convex/react";

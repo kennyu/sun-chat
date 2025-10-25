@@ -1,8 +1,8 @@
+import React, { useEffect, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView } from "react-native";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useRouter } from "expo-router";
-import { useState } from "react";
 
 export default function Chats() {
   const router = useRouter();
@@ -11,6 +11,8 @@ export default function Chats() {
   const [roomName, setRoomName] = useState("");
   const [memberIds, setMemberIds] = useState("");
   const users = useQuery(api.users.listAll, {});
+  const onlineSubjects = useQuery(api.presence.listOnlineSubjects, {});
+  const setPresence = useMutation(api.presence.setPresence);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
   const toggleSelect = (uid: string) => {
@@ -20,6 +22,33 @@ export default function Chats() {
       .map(([k]) => k);
     setMemberIds(ids.join(","));
   };
+
+  // Mark current user online across their rooms while on Chats
+  // (enables green indicators for others without entering a room)
+  useEffect(() => {
+    if (!rooms) return;
+    let cancelled = false;
+    const beat = () => {
+      rooms.forEach((r) => {
+        if (!r || cancelled) return;
+        setPresence({ roomId: r._id, online: true, typing: false }).catch(() => {});
+      });
+    };
+    beat();
+    const t = setInterval(beat, 10_000);
+    rooms.forEach((r) => {
+      if (!r) return;
+      setPresence({ roomId: r._id, online: true, typing: false }).catch(() => {});
+    });
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+      rooms.forEach((r) => {
+        if (!r) return;
+        setPresence({ roomId: r._id, online: false, typing: false }).catch(() => {});
+      });
+    };
+  }, [rooms, setPresence]);
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
@@ -45,7 +74,11 @@ export default function Chats() {
                   borderWidth: 1,
                   borderColor: selected[u!.userId] ? "#007aff" : "#ddd",
                   marginRight: 8,
-                  backgroundColor: selected[u!.userId] ? "#e6f0ff" : "#fafafa",
+                  backgroundColor: onlineSubjects?.includes(u!.userId)
+                    ? "#e8fbe8"
+                    : selected[u!.userId]
+                    ? "#e6f0ff"
+                    : "#fafafa",
                 }}
               >
                 <Text style={{ fontWeight: "500" }}>{u?.displayName ?? "User"}</Text>
