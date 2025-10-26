@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 declare global {
   /** Minimal `process.env` typings for Expo/React Native without @types/node */
   var process: {
@@ -20,3 +21,10 @@ declare global {
 export {};
 
 
+=======
+declare var process: {
+  env: {
+    [key: string]: string | undefined;
+  };
+};
+>>>>>>> CustomConvexAuth

@@ -1,25 +1,33 @@
-import React from "react";
-import { Slot } from "expo-router";
-import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
+import { Platform } from 'react-native'
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
-import { ConvexProviderWithClerk } from "convex/react-clerk";
-import { tokenCache } from '@clerk/clerk-expo/token-cache'
-import * as WebBrowser from "expo-web-browser";
-WebBrowser.maybeCompleteAuthSession();
-import { LocalStoreProvider } from "./localStore";
+import { Stack } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 
-const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!);
-const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
+const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
+  unsavedChangesWarning: false,
+});
+
+const secureStorage = {
+  getItem: SecureStore.getItemAsync,
+  setItem: SecureStore.setItemAsync,
+  removeItem: SecureStore.deleteItemAsync,
+};
 
 export default function RootLayout() {
   return (
-    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-    <ConvexProviderWithClerk  client={convex} useAuth={useAuth}>
-      <LocalStoreProvider>
-        <Slot />
-      </LocalStoreProvider>
-    </ConvexProviderWithClerk>
-  </ClerkProvider>
+    <ConvexAuthProvider
+      client={convex}
+      storage={
+        Platform.OS === "android" || Platform.OS === "ios"
+          ? secureStorage
+          : undefined
+      }
+    >
+      <Stack>
+        <Stack.Screen name="index" />
+      </Stack>
+    </ConvexAuthProvider>
   );
 }
 

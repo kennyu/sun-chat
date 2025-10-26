@@ -4,7 +4,9 @@ import { v } from "convex/values";
 export const listForCurrentUser = query({
   args: {},
   handler: async (ctx) => {
+    console.log("[rooms.listForCurrentUser] called", { ts: Date.now() });
     const identity = await ctx.auth.getUserIdentity();
+    console.log("[rooms.listForCurrentUser] identity", identity);
     if (!identity) return [];
     const userSubject = identity.subject;
 
@@ -25,7 +27,9 @@ export const listForCurrentUser = query({
 export const create = mutation({
   args: { name: v.string(), memberUserIds: v.array(v.string()) },
   handler: async (ctx, { name, memberUserIds }) => {
+    console.log("[rooms.create] called", { ts: Date.now(), name, memberUserIdsCount: memberUserIds.length });
     const identity = await ctx.auth.getUserIdentity();
+    console.log("[rooms.create] identity", identity);
     if (!identity) throw new Error("Unauthenticated");
     const subject = identity.subject;
 

@@ -4,5 +4,6 @@
     "jsx": "react-jsx",
     "types": ["react", "react-native", "expo-router"],
     "strict": true
-  }
+  },
+  "include": ["global.d.ts", "app"]
 }

@@ -1,35 +1,30 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView, Image } from "react-native";
-import { useQuery, useMutation } from "convex/react";
+import { Authenticated, Unauthenticated, useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { useRouter } from "expo-router";
-import { useAuth, useClerk } from "@clerk/clerk-expo";
-import { useLocalStore } from "../../localStore";
+import { Redirect, useRouter } from "expo-router";
+import { useAuthActions } from "@convex-dev/auth/react";
 
-export default function Chats() {
+function ChatsContent() {
   const router = useRouter();
-  const { userId } = useAuth();
-  const { signOut } = useClerk();
+  const { signOut } = useAuthActions();
+  const me = useQuery(api.users.current, {});
   const rooms = useQuery(api.rooms.listForCurrentUser, {});
   const createRoom = useMutation(api.rooms.create);
-  const { saveRoomsFromServer, rooms: localRooms } = useLocalStore();
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 5000);
-    return () => clearInterval(id);
-  }, []);
-  const ping = useQuery(api.ping.heartbeat, { tick });
   const [roomName, setRoomName] = useState("");
   const [memberIds, setMemberIds] = useState("");
   const users = useQuery(api.users.listAll, {});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const { drainOutbox } = useLocalStore();
 
   // Filter out current user from the members list
   const otherUsers = useMemo(() => {
-    if (!users || !userId) return [];
-    return users.filter((u) => u.userId !== userId);
-  }, [users, userId]);
+    if (!users || !me?.userId) return [];
+    return users.filter((u) => u.userId !== me.userId);
+  }, [users, me?.userId]);
+
+  // console.log("users", users);
+  // console.log("me", me);
+  // console.log("other users", otherUsers);
 
   const toggleSelect = (uid: string) => {
     setSelected((prev) => ({ ...prev, [uid]: !prev[uid] }));
@@ -39,37 +34,17 @@ export default function Chats() {
     setMemberIds(ids.join(","));
   };
 
-  useEffect(() => {
-    if (rooms && rooms.length > 0) {
-      // persist latest rooms to local db
-      saveRoomsFromServer(
-        rooms.map((r) => ({ _id: r!._id, name: r!.name, isGroup: r!.isGroup }))
-      ).catch(() => {});
-    }
-  }, [rooms, saveRoomsFromServer]);
-
-  const displayRooms = rooms ?? localRooms;
+  const displayRooms = rooms ?? [];
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
-      {/* Header with status + Sign Out */}
+      {/* Header with Sign Out */}
       <View style={{ flexDirection: "row", justifyContent: "flex-end", alignItems: "center", marginBottom: 16 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", marginRight: 12 }}>
-          <View
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: 5,
-              backgroundColor: ping ? "#16a34a" : "#ef4444",
-              marginRight: 6,
-            }}
-          />
-          <Text style={{ color: "#555", fontSize: 12 }}>
-            {ping ? "Online" : "Offline"}
-          </Text>
-        </View>
         <TouchableOpacity
-          onPress={() => signOut()}
+          onPress={async () => {
+            await signOut();
+            router.replace("/");
+          }}
           style={{
             paddingHorizontal: 16,
             paddingVertical: 8,
@@ -96,8 +71,8 @@ export default function Chats() {
           shadowRadius: 4,
           elevation: 2,
         }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 10 }}>Contacts</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 10 }}>Members</Text>
+          <ScrollView horizontal={true} showsHorizontalScrollIndicator={false}>
             {otherUsers.map((u) => (
               <TouchableOpacity
                 key={u!._id}
@@ -169,8 +144,6 @@ export default function Chats() {
               router.push(`/chat/${id}`);
             } catch (e) {
               // If offline, room creation isn't implemented for outbox in this minimal pass
-            } finally {
-              drainOutbox().catch(() => {});
             }
           }}
         />
@@ -196,6 +169,19 @@ export default function Chats() {
         />
       )}
     </View>
+  );
+}
+
+export default function Chats() {
+  return (
+    <>
+      <Authenticated>
+        <ChatsContent />
+      </Authenticated>
+      <Unauthenticated>
+        <Redirect href="/" />
+      </Unauthenticated>
+    </>
   );
 }
 

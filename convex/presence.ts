@@ -8,7 +8,9 @@ export const setPresence = mutation({
     typing: v.boolean(),
   },
   handler: async (ctx, { roomId, online, typing }) => {
+    console.log("[presence.setPresence] called", { ts: Date.now(), roomId, online, typing });
     const identity = await ctx.auth.getUserIdentity();
+    console.log("[presence.setPresence] identity", identity);
     if (!identity) throw new Error("Unauthenticated");
     const subject = identity.subject;
 
@@ -38,6 +40,7 @@ export const setPresence = mutation({
       typing,
       updatedAt: Date.now(),
     });
+    console.log("[presence.setPresence] upserted", { id });
     return id;
   },
 });

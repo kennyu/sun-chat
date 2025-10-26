@@ -1,9 +1,11 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
 
 const schema = defineSchema({
+  ...authTables,
   users: defineTable({
-    userId: v.string(), // Clerk subject
+    userId: v.string(), // Clerk subject ID
     email: v.optional(v.string()),
     displayName: v.string(),
     avatarUrl: v.optional(v.string()),
