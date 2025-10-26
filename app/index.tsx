@@ -1,47 +1,54 @@
-import { SignInButton } from "@clerk/clerk-react";
-import { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
+// app/index.tsx
+import { View, Text, Pressable, StyleSheet } from "react-native";
+import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import { Redirect } from "expo-router";
+import { SignInButton } from "@clerk/clerk-react";
 
-function App() {
+export default function App() {
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)",
-        padding: "24px",
-      }}
-    >
-      <Unauthenticated>
-        <div
-          style={{
-            width: "100%",
-            maxWidth: 420,
-            backgroundColor: "#ffffff",
-            borderRadius: 16,
-            boxShadow: "0 10px 25px rgba(0,0,0,0.12)",
-            padding: 24,
-            textAlign: "center",
-          }}
-        >
-          <h1 style={{ margin: 0, fontSize: 28, lineHeight: "32px" }}>Sun Chat</h1>
-          <p style={{ color: "#64748b", marginTop: 8, marginBottom: 16 }}>
-            Sign in to continue
-          </p>
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <SignInButton mode="modal" />
-          </div>
-        </div>
-      </Unauthenticated>
-      <Authenticated>
+    <View style={styles.container}>
+      <SignedOut>
+        <View style={styles.card}>
+          <Text style={styles.title}>Sun Chat</Text>
+          <Text style={styles.sub}>Sign in to continue</Text>
+          <SignInButton />
+        </View>
+      </SignedOut>
+
+      <SignedIn>
         <Redirect href="/(tabs)/chats" />
-      </Authenticated>
-      <AuthLoading>
-        <div style={{ color: "#ffffff", opacity: 0.9, marginTop: 16 }}>Still loading…</div>
-      </AuthLoading>
-    </main>
+      </SignedIn>
+
+      {/* If you need a loading state, keep it in Text/View only */}
+      {/* <Text style={styles.loading}>Still loading…</Text> */}
+    </View>
   );
 }
-export default App;
+
+const styles = StyleSheet.create({
+  container: {
+    minHeight: "100%",
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "transparent",
+  },
+  card: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
+    alignItems: "center",
+  },
+  title: { fontSize: 28, lineHeight: 32, fontWeight: "600" },
+  sub: { color: "#64748b", marginTop: 8, marginBottom: 16 },
+  cta: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "#0ea5e9" },
+  ctaText: { color: "#fff", fontWeight: "600" },
+  loading: { color: "#fff", opacity: 0.9, marginTop: 16 },
+});
