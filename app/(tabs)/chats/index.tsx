@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from "react";
 import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView } from "react-native";
-import { useQuery, useMutation } from "convex/react";
+import { Authenticated, Unauthenticated, useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useAuthActions } from "@convex-dev/auth/react";
 
-export default function Chats() {
+function ChatsContent() {
   const router = useRouter();
   const { signOut } = useAuthActions();
   const me = useQuery(api.users.current, {});
@@ -21,6 +21,10 @@ export default function Chats() {
     if (!users || !me?.userId) return [];
     return users.filter((u) => u.userId !== me.userId);
   }, [users, me?.userId]);
+
+  console.log("users", users);
+  console.log("me", me);
+  console.log("other users", otherUsers);
 
   const toggleSelect = (uid: string) => {
     setSelected((prev) => ({ ...prev, [uid]: !prev[uid] }));
@@ -140,6 +144,19 @@ export default function Chats() {
         />
       )}
     </View>
+  );
+}
+
+export default function Chats() {
+  return (
+    <>
+      <Authenticated>
+        <ChatsContent />
+      </Authenticated>
+      <Unauthenticated>
+        <Redirect href="/" />
+      </Unauthenticated>
+    </>
   );
 }
 

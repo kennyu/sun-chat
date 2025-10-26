@@ -108,7 +108,8 @@ function App() {
                         name: displayName,
                         displayName,
                       });
-                      router.replace("/(tabs)/chats");
+                      // Redirect handled by <Authenticated> below once the
+                      // token handshake completes.
                     } catch (e) {
                       setError("Invalid email or password");
                       router.replace("/");

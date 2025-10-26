@@ -9,7 +9,9 @@ export const send = mutation({
     imageUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    console.log("[messages.send] called", { ts: Date.now(), args });
     const identity = await ctx.auth.getUserIdentity();
+    console.log("[messages.send] identity", identity);
     if (!identity) throw new Error("Unauthenticated");
     const messageId = await ctx.db.insert("messages", {
       roomId: args.roomId,
@@ -19,6 +21,7 @@ export const send = mutation({
       imageUrl: args.imageUrl,
       createdAt: Date.now(),
     });
+    console.log("[messages.send] inserted", { messageId });
     return messageId;
   },
 });
