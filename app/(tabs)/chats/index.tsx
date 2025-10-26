@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView, Image } from "react-native";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useRouter } from "expo-router";
@@ -62,7 +62,7 @@ export default function Chats() {
           shadowRadius: 4,
           elevation: 2,
         }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 10 }}>Members</Text>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 10 }}>Contacts</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {otherUsers.map((u) => (
               <TouchableOpacity
@@ -76,9 +76,32 @@ export default function Chats() {
                   borderColor: selected[u!.userId] ? "#007aff" : "#ddd",
                   marginRight: 10,
                   backgroundColor: selected[u!.userId] ? "#e6f0ff" : "#fafafa",
+                  alignItems: "center",
                 }}
               >
-                <Text style={{ fontWeight: selected[u!.userId] ? "600" : "500", fontSize: 15, color: selected[u!.userId] ? "#007aff" : "#333" }}>
+                {u?.avatarUrl ? (
+                  <Image
+                    source={{ uri: u.avatarUrl }}
+                    style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 6, backgroundColor: "#eee" }}
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 24,
+                      marginBottom: 6,
+                      backgroundColor: "#e5e7eb",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ fontWeight: "700", color: "#374151" }}>
+                      {(u?.displayName ?? "U").slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Text style={{ fontWeight: selected[u!.userId] ? "600" : "500", fontSize: 13, color: selected[u!.userId] ? "#007aff" : "#333" }}>
                   {u?.displayName ?? "User"}
                 </Text>
               </TouchableOpacity>
