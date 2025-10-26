@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView, Image } from "react-native";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -11,6 +11,12 @@ export default function Chats() {
   const { signOut } = useClerk();
   const rooms = useQuery(api.rooms.listForCurrentUser, {});
   const createRoom = useMutation(api.rooms.create);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 5000);
+    return () => clearInterval(id);
+  }, []);
+  const ping = useQuery(api.ping.heartbeat, { tick });
   const [roomName, setRoomName] = useState("");
   const [memberIds, setMemberIds] = useState("");
   const users = useQuery(api.users.listAll, {});
@@ -32,8 +38,22 @@ export default function Chats() {
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
-      {/* Header with Sign Out */}
+      {/* Header with status + Sign Out */}
       <View style={{ flexDirection: "row", justifyContent: "flex-end", alignItems: "center", marginBottom: 16 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", marginRight: 12 }}>
+          <View
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 5,
+              backgroundColor: ping ? "#16a34a" : "#ef4444",
+              marginRight: 6,
+            }}
+          />
+          <Text style={{ color: "#555", fontSize: 12 }}>
+            {ping ? "Online" : "Offline"}
+          </Text>
+        </View>
         <TouchableOpacity
           onPress={() => signOut()}
           style={{
