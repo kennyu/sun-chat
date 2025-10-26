@@ -35,7 +35,10 @@ export default function Chats() {
       {/* Header with Sign Out */}
       <View style={{ flexDirection: "row", justifyContent: "flex-end", alignItems: "center", marginBottom: 16 }}>
         <TouchableOpacity
-          onPress={() => signOut()}
+          onPress={async () => {
+            await signOut();
+            router.replace("/");
+          }}
           style={{
             paddingHorizontal: 16,
             paddingVertical: 8,
