@@ -3,12 +3,12 @@ import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView }
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useRouter } from "expo-router";
-import { useAuth, useClerk } from "@clerk/clerk-expo";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 export default function Chats() {
   const router = useRouter();
-  const { userId } = useAuth();
-  const { signOut } = useClerk();
+  const { signOut } = useAuthActions();
+  const me = useQuery(api.users.current, {});
   const rooms = useQuery(api.rooms.listForCurrentUser, {});
   const createRoom = useMutation(api.rooms.create);
   const [roomName, setRoomName] = useState("");
@@ -18,9 +18,9 @@ export default function Chats() {
 
   // Filter out current user from the members list
   const otherUsers = useMemo(() => {
-    if (!users || !userId) return [];
-    return users.filter((u) => u.userId !== userId);
-  }, [users, userId]);
+    if (!users || !me?.userId) return [];
+    return users.filter((u) => u.userId !== me.userId);
+  }, [users, me?.userId]);
 
   const toggleSelect = (uid: string) => {
     setSelected((prev) => ({ ...prev, [uid]: !prev[uid] }));
@@ -63,7 +63,7 @@ export default function Chats() {
           elevation: 2,
         }}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 10 }}>Members</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView horizontal={true} showsHorizontalScrollIndicator={false}>
             {otherUsers.map((u) => (
               <TouchableOpacity
                 key={u!._id}

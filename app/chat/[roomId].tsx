@@ -3,12 +3,11 @@ import { useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { View, Text, FlatList, TextInput, Button, TouchableOpacity, StyleSheet } from "react-native";
-import { useAuth } from "@clerk/clerk-expo";
 import type { Id } from "../../convex/_generated/dataModel";
 
 export default function Room() {
   const { roomId } = useLocalSearchParams<{ roomId: string }>();
-  const { userId } = useAuth();
+  const me = useQuery(api.users.current, {});
   const [text, setText] = useState("");
   const messages = useQuery(api.messages.listByRoom, roomId ? { roomId: roomId as Id<"rooms"> } : "skip");
   const send = useMutation(api.messages.send);
@@ -102,7 +101,7 @@ export default function Room() {
             data={allMessages}
             keyExtractor={(m) => m._id}
             renderItem={({ item }) => {
-              const isCurrentUser = item.senderId === userId;
+              const isCurrentUser = item.senderId === me?.userId;
               const senderName = getSenderName(item.senderId);
               
               return (
