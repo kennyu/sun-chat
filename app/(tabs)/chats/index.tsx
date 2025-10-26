@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useRouter } from "expo-router";
 import { useAuth, useClerk } from "@clerk/clerk-expo";
+import { useLocalStore } from "../../localStore";
 
 export default function Chats() {
   const router = useRouter();
@@ -11,6 +12,7 @@ export default function Chats() {
   const { signOut } = useClerk();
   const rooms = useQuery(api.rooms.listForCurrentUser, {});
   const createRoom = useMutation(api.rooms.create);
+  const { saveRoomsFromServer, rooms: localRooms } = useLocalStore();
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 5000);
@@ -21,6 +23,7 @@ export default function Chats() {
   const [memberIds, setMemberIds] = useState("");
   const users = useQuery(api.users.listAll, {});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const { drainOutbox } = useLocalStore();
 
   // Filter out current user from the members list
   const otherUsers = useMemo(() => {
@@ -35,6 +38,17 @@ export default function Chats() {
       .map(([k]) => k);
     setMemberIds(ids.join(","));
   };
+
+  useEffect(() => {
+    if (rooms && rooms.length > 0) {
+      // persist latest rooms to local db
+      saveRoomsFromServer(
+        rooms.map((r) => ({ _id: r!._id, name: r!.name, isGroup: r!.isGroup }))
+      ).catch(() => {});
+    }
+  }, [rooms, saveRoomsFromServer]);
+
+  const displayRooms = rooms ?? localRooms;
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
@@ -154,19 +168,21 @@ export default function Chats() {
               setSelected({});
               router.push(`/chat/${id}`);
             } catch (e) {
-              // no-op
+              // If offline, room creation isn't implemented for outbox in this minimal pass
+            } finally {
+              drainOutbox().catch(() => {});
             }
           }}
         />
       </View>
 
-      {rooms === undefined ? (
+      {rooms === undefined && displayRooms.length === 0 ? (
         <Text>Loading…</Text>
-      ) : rooms.length === 0 ? (
+      ) : displayRooms.length === 0 ? (
         <Text>No rooms yet</Text>
       ) : (
         <FlatList
-          data={rooms}
+          data={displayRooms}
           keyExtractor={(item) => item!._id}
           renderItem={({ item }) => (
             <TouchableOpacity

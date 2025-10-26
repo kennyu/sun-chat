@@ -5,6 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { View, Text, FlatList, TextInput, Button, TouchableOpacity, StyleSheet } from "react-native";
 import { useAuth } from "@clerk/clerk-expo";
 import type { Id } from "../../convex/_generated/dataModel";
+import { useLocalStore } from "../localStore";
 
 export default function Room() {
   const { roomId } = useLocalSearchParams<{ roomId: string }>();
@@ -12,6 +13,8 @@ export default function Room() {
   const [text, setText] = useState("");
   const messages = useQuery(api.messages.listByRoom, roomId ? { roomId: roomId as Id<"rooms"> } : "skip");
   const send = useMutation(api.messages.send);
+  const { saveMessagesFromServer, useLocalMessages, sendMessage, drainOutbox } = useLocalStore();
+  const localMessages = useLocalMessages(roomId as string | undefined);
   // One-shot older page using before-cursor
   const [olderBefore, setOlderBefore] = useState<number | undefined>(undefined);
   const olderPage = useQuery(
@@ -41,14 +44,26 @@ export default function Room() {
     setPresence({ roomId: roomId as Id<"rooms">, online: true, typing: text.length > 0 }).catch(() => {});
   }, [text, roomId, setPresence]);
 
+  useEffect(() => {
+    if (!roomId) return;
+    const merged = [ ...(olderPage ?? []), ...(messages ?? []) ];
+    if (merged.length) {
+      saveMessagesFromServer(roomId as string, merged as any).catch(() => {});
+    }
+  }, [messages, olderPage, roomId, saveMessagesFromServer]);
+
   const allMessages = useMemo(() => {
-    const latest = messages ?? [];
-    const older = olderPage ?? [];
-    if (!older.length) return latest;
-    const map = new Map<string, typeof latest[number]>();
-    for (const m of [...older, ...latest]) map.set(m._id, m);
-    return Array.from(map.values()).sort((a, b) => a.createdAt - b.createdAt);
-  }, [messages, olderPage]);
+    const fromServer = (() => {
+      const latest = messages ?? [];
+      const older = olderPage ?? [];
+      if (!older.length) return latest;
+      const map = new Map<string, typeof latest[number]>();
+      for (const m of [...older, ...latest]) map.set(m._id, m);
+      return Array.from(map.values()).sort((a, b) => a.createdAt - b.createdAt);
+    })();
+    if (fromServer.length > 0) return fromServer as any;
+    return localMessages as any;
+  }, [messages, olderPage, localMessages]);
 
   // Join presence with user info
   const usersInRoom = useMemo(() => {
@@ -124,6 +139,9 @@ export default function Room() {
                       {item.text}
                     </Text>
                   </View>
+                  {item.pending && (
+                    <Text style={[styles.timestamp, { fontStyle: "italic" }]}>Pending…</Text>
+                  )}
                   <Text style={[
                     styles.timestamp,
                     isCurrentUser ? styles.currentUserTimestamp : styles.otherUserTimestamp
@@ -148,8 +166,20 @@ export default function Room() {
           title="Send"
           onPress={async () => {
             if (!roomId || !text.trim()) return;
-            await send({ roomId: roomId as Id<"rooms">, kind: "text", text: text.trim() });
+            // Always create optimistic local pending message
+            const localId = await sendMessage({ roomId: roomId as string, kind: "text", text: text.trim() });
             setText("");
+            try {
+              const serverId = await send({ roomId: roomId as Id<"rooms">, kind: "text", text: text.trim() });
+              // best-effort: mark delivered by replacing the localId with serverId
+              // local store will remove from outbox as well
+              // Note: we don't import markMessageDelivered directly here; the drain will also reconcile.
+            } catch {
+              // offline: outbox already contains this send; UI shows pending
+            } finally {
+              // attempt to drain in case we're online now
+              drainOutbox().catch(() => {});
+            }
           }}
         />
       </View>
