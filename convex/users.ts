@@ -79,11 +79,12 @@ export const getAvatarUrl = query({
 });
 
 export const getOnlineStatus = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { tick: v.optional(v.number()) },
+  handler: async (ctx, args) => {
     // Simply return true when authenticated, false otherwise
+    // tick param forces re-evaluation every 5s
     const identity = await ctx.auth.getUserIdentity();
-    return !!identity;
+    return { online: !!identity, serverTime: Date.now() };
   },
 });
 

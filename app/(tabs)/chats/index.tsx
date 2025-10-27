@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView, Image, Modal, StyleSheet, Platform, Alert } from "react-native";
 import { Authenticated, Unauthenticated, useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -17,7 +17,8 @@ function ChatsContent() {
   const [roomName, setRoomName] = useState("");
   const [memberIds, setMemberIds] = useState("");
   const users = useQuery(api.users.listAll, {});
-  const isOnline = useQuery(api.users.getOnlineStatus, {});
+  const [tick, setTick] = useState(0);
+  const onlineStatus = useQuery(api.users.getOnlineStatus, { tick });
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState("");
@@ -27,6 +28,14 @@ function ChatsContent() {
     api.users.getAvatarUrl,
     newAvatarUrl && !newAvatarUrl.startsWith("http") ? { storageId: newAvatarUrl as any } : "skip"
   );
+
+  // Poll every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(Date.now());
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Filter out current user from the members list
   const otherUsers = useMemo(() => {
@@ -96,11 +105,11 @@ function ChatsContent() {
                 width: 10,
                 height: 10,
                 borderRadius: 5,
-                backgroundColor: isOnline ? "#10b981" : "#9ca3af",
+                backgroundColor: onlineStatus?.online ? "#10b981" : "#9ca3af",
               }}
             />
             <Text style={{ fontSize: 12, color: "#666", fontWeight: "500" }}>
-              {isOnline ? "Online" : "Offline"}
+              {onlineStatus?.online ? "Online" : "Offline"}
             </Text>
           </View>
           <TouchableOpacity
