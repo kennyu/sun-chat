@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { View, Text, FlatList, TextInput, Button, TouchableOpacity, StyleSheet, ScrollView, Image, Modal } from "react-native";
 import { offlineStorage } from "../../lib/offlineStorage";
@@ -18,6 +18,19 @@ export default function Room() {
   const messages = useQuery(api.messages.listByRoom, roomId ? { roomId: roomId as Id<"rooms"> } : "skip");
   const send = useMutation(api.messages.send);
   const rooms = useQuery(api.rooms.listForCurrentUser, {});
+  const askAi = useAction((api as any).ai.answer);
+  const [askOpen, setAskOpen] = useState(false);
+  const [askPrompt, setAskPrompt] = useState("");
+  const [askAnswer, setAskAnswer] = useState("");
+  const [askLoading, setAskLoading] = useState(false);
+  const startStream = useAction((api as any).ai.startStreamingAnswer);
+  const pollStream = useAction((api as any).ai.pollStream);
+  const doSummarize = useAction((api as any).ai.summarizeThread);
+  const doExtract = useAction((api as any).ai.extractActionItems);
+  const [summaryText, setSummaryText] = useState<string>("");
+  const [itemsText, setItemsText] = useState<string>("");
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [selectedContext, setSelectedContext] = useState<{ text: string; createdAt: number } | null>(null);
   // One-shot older page using before-cursor
   const [olderBefore, setOlderBefore] = useState<number | undefined>(undefined);
   const olderPage = useQuery(
@@ -154,6 +167,19 @@ export default function Room() {
         <Text>Loading…</Text>
       ) : (
         <>
+          {/* Ask AI toolbar */}
+          <View style={{ marginBottom: 8, flexDirection: "row", justifyContent: "flex-end" }}>
+            <TouchableOpacity
+              onPress={() => {
+                setAskOpen(true);
+                setAskAnswer("");
+                setAskPrompt("");
+              }}
+              style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "#111827" }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "600" }}>Ask AI</Text>
+            </TouchableOpacity>
+          </View>
           <View style={{ marginBottom: 8 }}>
             <TouchableOpacity
               onPress={() => {
@@ -165,6 +191,55 @@ export default function Room() {
             >
               <Text style={{ color: "#007aff" }}>Load older</Text>
             </TouchableOpacity>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={async () => {
+                  if (!roomId || insightsLoading) return;
+                  setInsightsLoading(true);
+                  try {
+                    const res = await doSummarize({ roomId: roomId as Id<"rooms"> });
+                    setSummaryText((res as any)?.summary ?? "");
+                  } finally {
+                    setInsightsLoading(false);
+                  }
+                }}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#f3f4f6" }}
+              >
+                <Text style={{ color: "#111" }}>{insightsLoading ? "Summarizing…" : "Summarize"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => {
+                  if (!roomId || insightsLoading) return;
+                  setInsightsLoading(true);
+                  try {
+                    const res = await doExtract({ roomId: roomId as Id<"rooms"> });
+                    const items = ((res as any)?.items ?? []) as { text: string }[];
+                    setItemsText(items.map((i) => `• ${i.text}`).join("\n"));
+                  } finally {
+                    setInsightsLoading(false);
+                  }
+                }}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#f3f4f6" }}
+              >
+                <Text style={{ color: "#111" }}>{insightsLoading ? "Extracting…" : "Action Items"}</Text>
+              </TouchableOpacity>
+            </View>
+            {(summaryText || itemsText) && (
+              <View style={{ backgroundColor: "#f9fafb", padding: 10, borderRadius: 8, marginTop: 8 }}>
+                {summaryText ? (
+                  <>
+                    <Text style={{ fontWeight: "700", marginBottom: 4 }}>Summary</Text>
+                    <Text style={{ marginBottom: 8 }}>{summaryText}</Text>
+                  </>
+                ) : null}
+                {itemsText ? (
+                  <>
+                    <Text style={{ fontWeight: "700", marginBottom: 4 }}>Action Items</Text>
+                    <Text>{itemsText}</Text>
+                  </>
+                ) : null}
+              </View>
+            )}
           </View>
           <FlatList
             data={allMessages}
@@ -181,10 +256,22 @@ export default function Room() {
                   {!isCurrentUser && (
                     <Text style={styles.senderName}>{senderName}</Text>
                   )}
-                  <View style={[
-                    styles.messageBubble,
-                    isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble
-                  ]}>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    delayLongPress={350}
+                    onLongPress={() => {
+                      if ((item as any).text) {
+                        setSelectedContext({ text: String((item as any).text), createdAt: (item as any).createdAt });
+                        setAskOpen(true);
+                        setAskAnswer("");
+                        setAskPrompt(`About: "${String((item as any).text).slice(0, 200)}"\n\nQuestion:`);
+                      }
+                    }}
+                    style={[
+                      styles.messageBubble,
+                      isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble
+                    ]}
+                  >
                     {item.kind === "image" && (item as any).imageUrl ? (
                       <Image
                         source={{ uri: (item as any).imageUrl }}
@@ -199,7 +286,7 @@ export default function Room() {
                         {(item as any).text}
                       </Text>
                     )}
-                  </View>
+                  </TouchableOpacity>
                   <Text style={[
                     styles.timestamp,
                     isCurrentUser ? styles.currentUserTimestamp : styles.otherUserTimestamp
@@ -280,27 +367,45 @@ export default function Room() {
 
       {/* Image Upload Modal */}
       <Modal
-        visible={showImageModal}
+        visible={showImageModal || askOpen}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowImageModal(false)}
+        onRequestClose={() => { setShowImageModal(false); setAskOpen(false); }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Send Image</Text>
+            {askOpen ? (
+              <Text style={styles.modalTitle}>Ask AI</Text>
+            ) : (
+              <Text style={styles.modalTitle}>Send Image</Text>
+            )}
             
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Image URL</Text>
-              <TextInput
-                value={imageUrl}
-                onChangeText={setImageUrl}
-                style={styles.input}
-                placeholder="https://example.com/image.jpg"
-                autoCapitalize="none"
-              />
-            </View>
+            {askOpen ? (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Your question</Text>
+                <TextInput
+                  value={askPrompt}
+                  onChangeText={setAskPrompt}
+                  style={[styles.input, { minHeight: 48 }]}
+                  placeholder="Ask about this room's context…"
+                  autoCapitalize="sentences"
+                  multiline
+                />
+              </View>
+            ) : (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Image URL</Text>
+                <TextInput
+                  value={imageUrl}
+                  onChangeText={setImageUrl}
+                  style={styles.input}
+                  placeholder="https://example.com/image.jpg"
+                  autoCapitalize="none"
+                />
+              </View>
+            )}
 
-            {imageUrl && (
+            {!askOpen && imageUrl && (
               <View style={styles.imagePreview}>
                 <Text style={styles.label}>Preview</Text>
                 <Image
@@ -315,7 +420,10 @@ export default function Room() {
               <TouchableOpacity
                 onPress={() => {
                   setShowImageModal(false);
+                  setAskOpen(false);
                   setImageUrl("");
+                  setAskPrompt("");
+                  setAskAnswer("");
                 }}
                 style={[styles.modalButton, styles.cancelButton]}
               >
@@ -323,49 +431,91 @@ export default function Room() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={async () => {
-                  if (!roomId || !imageUrl.trim()) return;
-                  const temp: PendingMessage = {
-                    tempId: `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                    roomId: String(roomId),
-                    senderId: String(me?._id ?? "me"),
-                    kind: "image",
-                    imageUrl: imageUrl.trim(),
-                    createdAt: Date.now(),
-                    status: "pending",
-                  };
-                  try {
-                    const next = [...cachedMessages, temp].sort((a, b) => a.createdAt - b.createdAt);
-                    setCachedMessages(next);
-                    await offlineStorage.setRoomMessages(String(roomId), next);
-                    await offlineStorage.enqueueOutbox(temp);
+                  if (askOpen) {
+                    if (!roomId || !askPrompt.trim() || askLoading) return;
+                    setAskLoading(true);
+                    setAskAnswer("");
+                    try {
+                      const { streamId } = (await startStream({ roomId: roomId as Id<"rooms">, prompt: askPrompt.trim() })) as any;
+                      let afterSeq = -1;
+                      const tick = async () => {
+                        try {
+                          const events = (await pollStream({ streamId, afterSeq })) as any[];
+                          if (Array.isArray(events) && events.length > 0) {
+                            for (const ev of events) {
+                              afterSeq = Math.max(afterSeq, ev.seq ?? -1);
+                              if (ev.kind === "token" && ev.data) setAskAnswer((prev) => prev + ev.data);
+                              if (ev.kind === "done" || ev.kind === "error") {
+                                setAskLoading(false);
+                                return; // stop polling
+                              }
+                            }
+                          }
+                        } catch {}
+                        if (askLoading) setTimeout(tick, 400);
+                      };
+                      setTimeout(tick, 300);
+                    } catch (e) {
+                      setAskAnswer(String((e as any)?.message ?? e));
+                      setAskLoading(false);
+                    }
+                  } else {
+                    if (!roomId || !imageUrl.trim()) return;
+                    const temp: PendingMessage = {
+                      tempId: `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                      roomId: String(roomId),
+                      senderId: String(me?._id ?? "me"),
+                      kind: "image",
+                      imageUrl: imageUrl.trim(),
+                      createdAt: Date.now(),
+                      status: "pending",
+                    };
+                    try {
+                      const next = [...cachedMessages, temp].sort((a, b) => a.createdAt - b.createdAt);
+                      setCachedMessages(next);
+                      await offlineStorage.setRoomMessages(String(roomId), next);
+                      await offlineStorage.enqueueOutbox(temp);
 
-                    await send({ 
-                      roomId: roomId as Id<"rooms">, 
-                      kind: "image", 
-                      imageUrl: imageUrl.trim() 
-                    });
-                    const sig = `${temp.senderId}|${temp.createdAt}|${temp.text ?? ""}|${temp.imageUrl ?? ""}`;
-                    await offlineStorage.removeFromOutboxBySignature(sig);
-                    await offlineStorage.prunePendingFromRoomBySignature(String(roomId), sig);
-                    const refreshed = await offlineStorage.getRoomMessages(String(roomId));
-                    setCachedMessages(refreshed);
-                  } catch (e) {
-                    console.error("Failed to send image", e);
-                    // mark failed in cache for the temp message
-                    await offlineStorage.markFailedInOutbox(temp.tempId);
-                    const all = await offlineStorage.getRoomMessages(String(roomId));
-                    const updated = all.map((m: any) => (m as any).tempId === temp.tempId ? { ...m, status: "failed" } : m);
-                    await offlineStorage.setRoomMessages(String(roomId), updated);
-                    setCachedMessages(updated);
+                      await send({ 
+                        roomId: roomId as Id<"rooms">, 
+                        kind: "image", 
+                        imageUrl: imageUrl.trim() 
+                      });
+                      const sig = `${temp.senderId}|${temp.createdAt}|${temp.text ?? ""}|${temp.imageUrl ?? ""}`;
+                      await offlineStorage.removeFromOutboxBySignature(sig);
+                      await offlineStorage.prunePendingFromRoomBySignature(String(roomId), sig);
+                      const refreshed = await offlineStorage.getRoomMessages(String(roomId));
+                      setCachedMessages(refreshed);
+                    } catch (e) {
+                      console.error("Failed to send image", e);
+                      // mark failed in cache for the temp message
+                      await offlineStorage.markFailedInOutbox(temp.tempId);
+                      const all = await offlineStorage.getRoomMessages(String(roomId));
+                      const updated = all.map((m: any) => (m as any).tempId === temp.tempId ? { ...m, status: "failed" } : m);
+                      await offlineStorage.setRoomMessages(String(roomId), updated);
+                      setCachedMessages(updated);
+                    }
+                    setShowImageModal(false);
+                    setImageUrl("");
                   }
-                  setShowImageModal(false);
-                  setImageUrl("");
                 }}
                 style={[styles.modalButton, styles.saveButton]}
               >
-                <Text style={styles.saveButtonText}>Send</Text>
+                <Text style={styles.saveButtonText}>{askOpen ? (askLoading ? "Asking…" : (askAnswer ? "Close" : "Ask")) : "Send"}</Text>
               </TouchableOpacity>
             </View>
+
+            {askOpen && (askLoading || askAnswer) && (
+              <View style={{ marginTop: 16 }}>
+                {askLoading ? (
+                  <Text style={{ color: "#666" }}>Thinking…</Text>
+                ) : (
+                  <ScrollView style={{ maxHeight: 240 }}>
+                    <Text style={{ fontSize: 16, color: "#111" }}>{askAnswer}</Text>
+                  </ScrollView>
+                )}
+              </View>
+            )}
           </View>
         </View>
       </Modal>

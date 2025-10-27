@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView, Image, Modal, StyleSheet, Platform, Alert } from "react-native";
-import { Authenticated, Unauthenticated, useQuery, useMutation } from "convex/react";
+import { Authenticated, Unauthenticated, useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Redirect, useRouter } from "expo-router";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -19,6 +19,11 @@ function ChatsContent() {
   const [roomName, setRoomName] = useState("");
   const [memberIds, setMemberIds] = useState("");
   const users = useQuery(api.users.listAll, {});
+  const aiSearch = useAction((api as any).ai.answer);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [searchResult, setSearchResult] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
   const [cachedRooms, setCachedRooms] = useState<CachedRoom[]>([]);
   const [cachedUsers, setCachedUsers] = useState<CachedUser[]>([]);
   const [tick, setTick] = useState(0);
@@ -347,6 +352,61 @@ function ChatsContent() {
           </ScrollView>
         </View>
       )}
+
+      {/* AI Search */}
+      <View style={{ marginBottom: 12 }}>
+        {searchOpen ? (
+          <View style={{ gap: 8 }}>
+            <TextInput
+              placeholder="Semantic search across your chats…"
+              value={searchText}
+              onChangeText={setSearchText}
+              style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
+            />
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                onPress={async () => {
+                  if (!searchText.trim() || searchLoading) return;
+                  setSearchLoading(true);
+                  setSearchResult("");
+                  try {
+                    // Use first room as context if exists; simple MVP
+                    const rid = (rooms && rooms[0]?._id) || undefined;
+                    if (!rid) {
+                      setSearchResult("No rooms to search.");
+                    } else {
+                      const res = await aiSearch({ roomId: rid, prompt: searchText.trim() });
+                      setSearchResult((res as any)?.text ?? "");
+                    }
+                  } catch (e) {
+                    setSearchResult(String((e as any)?.message ?? e));
+                  } finally {
+                    setSearchLoading(false);
+                  }
+                }}
+                style={{ paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#111827", borderRadius: 8 }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "600" }}>{searchLoading ? "Searching…" : "Search"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => { setSearchOpen(false); setSearchText(""); setSearchResult(""); }}
+                style={{ paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#f3f4f6", borderRadius: 8 }}
+              >
+                <Text style={{ color: "#111", fontWeight: "600" }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            {searchLoading || !!searchResult ? (
+              <View style={{ backgroundColor: "#f9fafb", padding: 12, borderRadius: 8 }}>
+                <Text style={{ color: "#111" }}>{searchLoading ? "Working…" : searchResult}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <TouchableOpacity onPress={() => setSearchOpen(true)} style={{ alignSelf: "flex-end" }}>
+            <Text style={{ color: "#007aff", fontWeight: "600" }}>Smart Search</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Create Room Section */}
       <View style={{ gap: 8, marginBottom: 12 }}>

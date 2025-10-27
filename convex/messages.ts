@@ -1,5 +1,6 @@
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 
 export const send = mutation({
   args: {
@@ -22,6 +23,12 @@ export const send = mutation({
       createdAt: Date.now(),
     });
     console.log("[messages.send] inserted", { messageId });
+    // Fire-and-forget: compute embedding if text present
+    if (args.kind === "text" && args.text) {
+      ctx.scheduler.runAfter(0, (internal as any).ai._embedMessage, {
+        messageId,
+      });
+    }
     return messageId;
   },
 });
@@ -33,6 +40,13 @@ export const listByRoom = query({
     if (before !== undefined) q = q.filter((qq) => qq.lt(qq.field("createdAt"), before));
     const rows = await q.order("desc").take(limit);
     return rows.reverse();
+  },
+});
+
+export const get = internalQuery({
+  args: { id: v.id("messages") },
+  handler: async (ctx, { id }) => {
+    return await ctx.db.get(id);
   },
 });
 
