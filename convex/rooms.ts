@@ -43,11 +43,13 @@ export const listForCurrentUser = query({
 
         return {
           ...room,
-          members: memberUsers.map((u) => ({
+          members: await Promise.all(memberUsers.map(async (u) => ({
             _id: u._id,
             displayName: u.displayName,
-            avatarUrl: u.avatarUrl,
-          })),
+            avatarUrl: u.avatarStorageId 
+              ? await ctx.storage.getUrl(u.avatarStorageId) 
+              : u.avatarUrl,
+          }))),
         } as any;
       })
     );

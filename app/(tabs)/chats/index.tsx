@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from "react";
-import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView, Image, Modal, StyleSheet } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, TextInput, Button, ScrollView, Image, Modal, StyleSheet, Platform, Alert } from "react-native";
 import { Authenticated, Unauthenticated, useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Redirect, useRouter } from "expo-router";
 import { useAuthActions } from "@convex-dev/auth/react";
+import * as ImagePicker from 'expo-image-picker';
 
 function ChatsContent() {
   const router = useRouter();
@@ -12,6 +13,7 @@ function ChatsContent() {
   const rooms = useQuery(api.rooms.listForCurrentUser, {});
   const createRoom = useMutation(api.rooms.create);
   const updateProfile = useMutation(api.users.updateProfile);
+  const generateUploadUrl = useMutation(api.users.generateUploadUrl);
   const [roomName, setRoomName] = useState("");
   const [memberIds, setMemberIds] = useState("");
   const users = useQuery(api.users.listAll, {});
@@ -19,6 +21,11 @@ function ChatsContent() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newAvatarUrl, setNewAvatarUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const getAvatarUrl = useQuery(
+    api.users.getAvatarUrl,
+    newAvatarUrl && !newAvatarUrl.startsWith("http") ? { storageId: newAvatarUrl as any } : "skip"
+  );
 
   // Filter out current user from the members list
   const otherUsers = useMemo(() => {
@@ -119,21 +126,63 @@ function ChatsContent() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Avatar URL</Text>
+              <Text style={styles.label}>Avatar</Text>
+              <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    const result = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                      allowsEditing: true,
+                      aspect: [1, 1],
+                      quality: 0.5,
+                    });
+
+                    if (!result.canceled && result.assets[0]) {
+                      setUploading(true);
+                      const uploadUrl = await generateUploadUrl();
+                      
+                      const response = await fetch(result.assets[0].uri);
+                      const blob = await response.blob();
+                      
+                      const uploadResult = await fetch(uploadUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": blob.type },
+                        body: blob,
+                      });
+
+                      const { storageId } = await uploadResult.json();
+                      setNewAvatarUrl(storageId);
+                      setUploading(false);
+                    }
+                  } catch (error) {
+                    setUploading(false);
+                    Alert.alert("Error", "Failed to upload image");
+                  }
+                }}
+                style={[styles.input, { justifyContent: "center", alignItems: "center", paddingVertical: 16 }]}
+                disabled={uploading}
+              >
+                <Text style={{ color: uploading ? "#999" : "#007aff" }}>
+                  {uploading ? "Uploading..." : "📷 Choose Image"}
+                </Text>
+              </TouchableOpacity>
+              
               <TextInput
-                value={newAvatarUrl}
+                value={typeof newAvatarUrl === "string" && newAvatarUrl.startsWith("http") ? newAvatarUrl : ""}
                 onChangeText={setNewAvatarUrl}
-                style={styles.input}
-                placeholder="https://example.com/avatar.jpg"
+                style={[styles.input, { marginTop: 8 }]}
+                placeholder="Or paste image URL"
                 autoCapitalize="none"
               />
             </View>
 
-            {newAvatarUrl && (
+            {(newAvatarUrl || getAvatarUrl) && (
               <View style={styles.avatarPreview}>
                 <Text style={styles.label}>Preview</Text>
                 <Image
-                  source={{ uri: newAvatarUrl }}
+                  source={{ 
+                    uri: newAvatarUrl.startsWith("http") ? newAvatarUrl : (getAvatarUrl ?? undefined)
+                  }}
                   style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#eee" }}
                 />
               </View>
@@ -149,10 +198,19 @@ function ChatsContent() {
               <TouchableOpacity
                 onPress={async () => {
                   try {
-                    await updateProfile({
+                    const updates: any = {
                       displayName: newDisplayName.trim() || undefined,
-                      avatarUrl: newAvatarUrl.trim() || undefined,
-                    });
+                    };
+                    
+                    if (newAvatarUrl) {
+                      if (newAvatarUrl.startsWith("http")) {
+                        updates.avatarUrl = newAvatarUrl.trim();
+                      } else {
+                        updates.avatarStorageId = newAvatarUrl;
+                      }
+                    }
+                    
+                    await updateProfile(updates);
                     setShowProfileModal(false);
                   } catch (e) {
                     console.error("Failed to update profile", e);

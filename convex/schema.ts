@@ -5,10 +5,11 @@ import { authTables } from "@convex-dev/auth/server";
 const schema = defineSchema({
   ...authTables,
   users: defineTable({
-    userId: v.string(), // Clerk subject ID
+    userId: v.string(), // Auth subject ID
     email: v.optional(v.string()),
     displayName: v.string(),
-    avatarUrl: v.optional(v.string()),
+    avatarUrl: v.optional(v.string()), // Legacy URL support
+    avatarStorageId: v.optional(v.id("_storage")), // Convex file storage
   })
     .index("by_userId", ["userId"]) 
     .index("by_email", ["email"]),
