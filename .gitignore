@@ -18,8 +18,6 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 
-# Drizzle
-drizzle/meta/*
 
 # Convex generated
 convex/_generated/
