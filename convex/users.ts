@@ -5,7 +5,16 @@ export const listAll = query({
   args: {},
   handler: async (ctx) => {
     const rows = await ctx.db.query("users").collect();
-    return rows;
+    
+    // Resolve storage IDs to URLs
+    return await Promise.all(
+      rows.map(async (user) => {
+        const avatarUrl = user.avatarStorageId 
+          ? await ctx.storage.getUrl(user.avatarStorageId)
+          : user.avatarUrl;
+        return { ...user, avatarUrl };
+      })
+    );
   },
 });
 
