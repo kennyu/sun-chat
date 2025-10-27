@@ -17,6 +17,7 @@ function ChatsContent() {
   const [roomName, setRoomName] = useState("");
   const [memberIds, setMemberIds] = useState("");
   const users = useQuery(api.users.listAll, {});
+  const isOnline = useQuery(api.users.getOnlineStatus, {});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState("");
@@ -88,20 +89,35 @@ function ChatsContent() {
             <Text style={{ fontSize: 12, color: "#666" }}>Tap to edit profile</Text>
           </View>
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={async () => {
-            await signOut();
-            router.replace("/");
-          }}
-          style={{
-            paddingHorizontal: 16,
-            paddingVertical: 8,
-            backgroundColor: "#ff3b30",
-            borderRadius: 8,
-          }}
-        >
-          <Text style={{ color: "#ffffff", fontWeight: "600", fontSize: 14 }}>Sign Out</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 5,
+                backgroundColor: isOnline ? "#10b981" : "#9ca3af",
+              }}
+            />
+            <Text style={{ fontSize: 12, color: "#666", fontWeight: "500" }}>
+              {isOnline ? "Online" : "Offline"}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={async () => {
+              await signOut();
+              router.replace("/");
+            }}
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              backgroundColor: "#ff3b30",
+              borderRadius: 8,
+            }}
+          >
+            <Text style={{ color: "#ffffff", fontWeight: "600", fontSize: 14 }}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Profile Edit Modal */}
