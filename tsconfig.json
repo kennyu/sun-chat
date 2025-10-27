@@ -3,7 +3,8 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "types": ["react", "react-native", "expo-router"],
-    "strict": true
+    "strict": true,
+    "lib": ["ES2017", "DOM"]
   },
   "include": ["global.d.ts", "app"]
 }
