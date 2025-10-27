@@ -15,7 +15,7 @@ export const send = mutation({
     if (!identity) throw new Error("Unauthenticated");
     const messageId = await ctx.db.insert("messages", {
       roomId: args.roomId,
-      senderId: identity.subject,
+      senderId: identity.subject.split("|")[0],
       kind: args.kind,
       text: args.text,
       imageUrl: args.imageUrl,

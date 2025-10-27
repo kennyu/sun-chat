@@ -12,14 +12,13 @@ export const setPresence = mutation({
     const identity = await ctx.auth.getUserIdentity();
     console.log("[presence.setPresence] identity", identity);
     if (!identity) throw new Error("Unauthenticated");
-    const subject = identity.subject;
 
     // Find existing presence for this user/room
     // We store presence.userId as a users document Id
     const userDoc = await ctx.db
-      .query("users")
-      .withIndex("by_userId", (q) => q.eq("userId", subject))
-      .first();
+        .query("users")
+        .filter((q) => q.eq(q.field("_id"), identity?.subject?.split("|")[0]))
+        .first();
     if (!userDoc) throw new Error("User record not found");
 
     const existing = await ctx.db

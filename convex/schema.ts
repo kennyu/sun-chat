@@ -31,12 +31,6 @@ const schema = defineSchema({
     imageUrl: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_room_time", ["roomId", "createdAt"]),
-  receipts: defineTable({
-    messageId: v.id("messages"),
-    userId: v.string(),
-    status: v.string(),
-    at: v.number(),
-  }).index("by_msg", ["messageId"]),
   presence: defineTable({
     userId: v.id("users"),
     roomId: v.id("rooms"),
