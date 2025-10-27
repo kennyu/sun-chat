@@ -324,16 +324,16 @@ export default function Room() {
               <TouchableOpacity
                 onPress={async () => {
                   if (!roomId || !imageUrl.trim()) return;
+                  const temp: PendingMessage = {
+                    tempId: `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                    roomId: String(roomId),
+                    senderId: String(me?._id ?? "me"),
+                    kind: "image",
+                    imageUrl: imageUrl.trim(),
+                    createdAt: Date.now(),
+                    status: "pending",
+                  };
                   try {
-                    const temp: PendingMessage = {
-                      tempId: `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                      roomId: String(roomId),
-                      senderId: String(me?._id ?? "me"),
-                      kind: "image",
-                      imageUrl: imageUrl.trim(),
-                      createdAt: Date.now(),
-                      status: "pending",
-                    };
                     const next = [...cachedMessages, temp].sort((a, b) => a.createdAt - b.createdAt);
                     setCachedMessages(next);
                     await offlineStorage.setRoomMessages(String(roomId), next);
@@ -351,9 +351,10 @@ export default function Room() {
                     setCachedMessages(refreshed);
                   } catch (e) {
                     console.error("Failed to send image", e);
-                    // mark failed in cache for the last temp message
+                    // mark failed in cache for the temp message
+                    await offlineStorage.markFailedInOutbox(temp.tempId);
                     const all = await offlineStorage.getRoomMessages(String(roomId));
-                    const updated = all.map((m: any) => m.tempId ? { ...m, status: m.tempId ? "failed" : m.status } : m);
+                    const updated = all.map((m: any) => (m as any).tempId === temp.tempId ? { ...m, status: "failed" } : m);
                     await offlineStorage.setRoomMessages(String(roomId), updated);
                     setCachedMessages(updated);
                   }
