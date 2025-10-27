@@ -351,7 +351,7 @@ export const classifyMessageSignals = action({
     const start = Date.now();
     try {
       const completion: any = await openai.chat.completions.create({
-        model: "gpt-5",
+        model: "gpt-5-mini",
         messages: [
           {
             role: "system",
@@ -521,7 +521,7 @@ export const summarizeThread = action({
         .join("\n")
         .slice(0, 12000);
       const completion: any = await openai.chat.completions.create({
-        model: "gpt-5",
+        model: "gpt-5-mini",
         messages: [
           { role: "system", content: "Summarize the thread succinctly for stakeholders. 5-8 bullet points or a short paragraph." },
           { role: "user", content: textBlock },
@@ -563,7 +563,7 @@ export const extractActionItems = action({
         .join("\n")
         .slice(0, 12000);
       const completion = await openai.chat.completions.create({
-        model: "gpt-5",
+        model: "gpt-5-mini",
         messages: [
           { role: "system", content: "Extract action items as JSON array of {text, assignee?, dueDate?, priority?}. Use ISO date for dueDate if present." },
           { role: "user", content: textBlock },
