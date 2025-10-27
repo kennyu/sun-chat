@@ -7,6 +7,7 @@ import { offlineStorage } from "../../lib/offlineStorage";
 import { useOfflineSync } from "../../hooks/useOfflineSync";
 import type { AnyCachedMessage, PendingMessage } from "../../types/offline";
 import type { Id } from "../../convex/_generated/dataModel";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Room() {
   const { roomId } = useLocalSearchParams<{ roomId: string }>();
@@ -127,7 +128,7 @@ export default function Room() {
   };
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f9fafb" }}>
       {/* Rooms switcher */}
       {rooms && rooms.length > 0 && (
         <View style={{ marginBottom: 12 }}>
@@ -519,7 +520,7 @@ export default function Room() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

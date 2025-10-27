@@ -360,7 +360,7 @@ export const classifyMessageSignals = action({
           },
           { role: "user", content: message.text },
         ],
-        temperature: 0,
+        temperature: 1,
       });
       const content: string = completion.choices?.[0]?.message?.content ?? "{\"priority\":\"normal\",\"decision\":false}";
       let priority = "normal";
@@ -526,7 +526,7 @@ export const summarizeThread = action({
           { role: "system", content: "Summarize the thread succinctly for stakeholders. 5-8 bullet points or a short paragraph." },
           { role: "user", content: textBlock },
         ],
-        temperature: 0.2,
+        temperature: 1,
       });
       const summary: string = completion.choices?.[0]?.message?.content ?? "";
       await ctx.runMutation((internal as any).ai._setThreadSummary, { roomId, summary, model: completion.model });
@@ -568,7 +568,7 @@ export const extractActionItems = action({
           { role: "system", content: "Extract action items as JSON array of {text, assignee?, dueDate?, priority?}. Use ISO date for dueDate if present." },
           { role: "user", content: textBlock },
         ],
-        temperature: 0.2,
+        temperature: 1,
       });
       let items: { text: string; assignee?: string; dueDate?: string; priority?: string }[] = [];
       const content: string = completion.choices?.[0]?.message?.content ?? "[]";

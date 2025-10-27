@@ -1,7 +1,7 @@
 import { Platform } from 'react-native'
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
-import { Stack } from "expo-router";
+import { Slot } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
@@ -24,9 +24,7 @@ export default function RootLayout() {
           : undefined
       }
     >
-      <Stack>
-        <Stack.Screen name="index" />
-      </Stack>
+        <Slot />
     </ConvexAuthProvider>
   );
 }

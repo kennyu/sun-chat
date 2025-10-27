@@ -7,6 +7,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import * as ImagePicker from 'expo-image-picker';
 import { offlineStorage } from "../../../lib/offlineStorage";
 import type { CachedRoom, CachedUser } from "../../../types/offline";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 function ChatsContent() {
   const router = useRouter();
@@ -98,7 +99,8 @@ function ChatsContent() {
   }, [users]);
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f9fafb" }}>
       {/* Header with profile and Sign Out */}
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <TouchableOpacity
@@ -506,7 +508,7 @@ function ChatsContent() {
           }}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

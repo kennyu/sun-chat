@@ -1,6 +1,10 @@
 {
   "expo": {
     "scheme": "sunchat",
+    "runtimeVersion": { "policy": "sdkVersion" },
+    "updates": {
+      "url": "https://u.expo.dev/93433e50-d7f8-4672-b7c6-69f50ed8a820"
+    },
     "android": {
       "package": "com.sun.chat",
       "intentFilters": [
@@ -8,7 +12,6 @@
           "action": "VIEW",
           "data": {
             "scheme": "sunchat",
-            "host": "app"
           },
           "category": ["BROWSABLE", "DEFAULT"]
         }
