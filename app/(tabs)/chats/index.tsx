@@ -5,6 +5,8 @@ import { api } from "../../../convex/_generated/api";
 import { Redirect, useRouter } from "expo-router";
 import { useAuthActions } from "@convex-dev/auth/react";
 import * as ImagePicker from 'expo-image-picker';
+import { offlineStorage } from "../../../lib/offlineStorage";
+import type { CachedRoom, CachedUser } from "../../../types/offline";
 
 function ChatsContent() {
   const router = useRouter();
@@ -17,6 +19,8 @@ function ChatsContent() {
   const [roomName, setRoomName] = useState("");
   const [memberIds, setMemberIds] = useState("");
   const users = useQuery(api.users.listAll, {});
+  const [cachedRooms, setCachedRooms] = useState<CachedRoom[]>([]);
+  const [cachedUsers, setCachedUsers] = useState<CachedUser[]>([]);
   const [tick, setTick] = useState(0);
   const onlineStatus = useQuery(api.users.getOnlineStatus, { tick });
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -39,9 +43,10 @@ function ChatsContent() {
 
   // Filter out current user from the members list
   const otherUsers = useMemo(() => {
-    if (!users || !me?.userId) return [];
-    return users.filter((u) => u.userId !== me.userId);
-  }, [users, me?.userId]);
+    const list = users ?? cachedUsers;
+    if (!list || !me?.userId) return [] as any[];
+    return list.filter((u: any) => u.userId !== me.userId);
+  }, [users, cachedUsers, me?.userId]);
 
   // console.log("users", users);
   // console.log("me", me);
@@ -55,7 +60,37 @@ function ChatsContent() {
     setMemberIds(ids.join(","));
   };
 
-  const displayRooms = rooms ?? [];
+  const displayRooms = rooms ?? cachedRooms;
+
+  // Load cached rooms/users on mount
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const [r, u] = await Promise.all([offlineStorage.getRooms(), offlineStorage.getUsers()]);
+      if (active) {
+        setCachedRooms(r);
+        setCachedUsers(u);
+      }
+    }
+    void load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Persist live rooms/users when available
+  useEffect(() => {
+    if (rooms && rooms.length) {
+      setCachedRooms(rooms as any);
+      void offlineStorage.setRooms(rooms as any);
+    }
+  }, [rooms]);
+  useEffect(() => {
+    if (users && users.length) {
+      setCachedUsers(users as any);
+      void offlineStorage.setUsers(users as any);
+    }
+  }, [users]);
 
   return (
     <View style={{ flex: 1, padding: 16 }}>

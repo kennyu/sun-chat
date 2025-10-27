@@ -3,6 +3,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { View, Text, FlatList, TextInput, Button, TouchableOpacity, StyleSheet, ScrollView, Image, Modal } from "react-native";
+import { offlineStorage } from "../../lib/offlineStorage";
+import { useOfflineSync } from "../../hooks/useOfflineSync";
+import type { AnyCachedMessage, PendingMessage } from "../../types/offline";
 import type { Id } from "../../convex/_generated/dataModel";
 
 export default function Room() {
@@ -44,14 +47,52 @@ export default function Room() {
     setPresence({ roomId: roomId as Id<"rooms">, online: true, typing: text.length > 0 }).catch(() => {});
   }, [text, roomId, setPresence]);
 
-  const allMessages = useMemo(() => {
-    const latest = messages ?? [];
-    const older = olderPage ?? [];
-    if (!older.length) return latest;
-    const map = new Map<string, typeof latest[number]>();
-    for (const m of [...older, ...latest]) map.set(m._id, m);
-    return Array.from(map.values()).sort((a, b) => a.createdAt - b.createdAt);
-  }, [messages, olderPage]);
+  const [cachedMessages, setCachedMessages] = useState<AnyCachedMessage[]>([]);
+
+  // Drain outbox on mount
+  const { triggerDrain } = useOfflineSync();
+
+  // Load cached messages when room changes
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      if (!roomId) return;
+      const cached = await offlineStorage.getRoomMessages(String(roomId));
+      if (active) setCachedMessages(cached);
+    }
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [roomId]);
+
+  // Persist server messages into cache and merge with pending
+  useEffect(() => {
+    async function persist() {
+      if (!roomId) return;
+      const server = [...(olderPage ?? []), ...(messages ?? [])];
+      if (server.length > 0) {
+        const dedup = new Map<string, AnyCachedMessage>();
+        for (const m of server) {
+          const sig = `${m.senderId}|${m.createdAt}|${m.text ?? ""}|${m.imageUrl ?? ""}`;
+          dedup.set(sig, m as AnyCachedMessage);
+        }
+        for (const m of cachedMessages) {
+          if ((m as any).tempId) {
+            const sig = `${(m as any).senderId}|${m.createdAt}|${(m as any).text ?? ""}|${(m as any).imageUrl ?? ""}`;
+            if (!dedup.has(sig)) dedup.set(sig, m);
+          }
+        }
+        const merged = Array.from(dedup.values()).sort((a, b) => a.createdAt - b.createdAt);
+        setCachedMessages(merged);
+        await offlineStorage.setRoomMessages(String(roomId), merged);
+      }
+    }
+    void persist();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, olderPage, roomId]);
+
+  const allMessages = useMemo(() => cachedMessages, [cachedMessages]);
 
   // Join presence with user info
   const usersInRoom = useMemo(() => {
@@ -127,7 +168,7 @@ export default function Room() {
           </View>
           <FlatList
             data={allMessages}
-            keyExtractor={(m) => m._id}
+            keyExtractor={(m: any) => m._id ?? m.tempId ?? `${m.senderId}|${m.createdAt}|${m.text ?? ""}|${m.imageUrl ?? ""}`}
             renderItem={({ item }) => {
               const isCurrentUser = item.senderId === me?._id;
               const senderName = getSenderName(item.senderId);
@@ -144,9 +185,9 @@ export default function Room() {
                     styles.messageBubble,
                     isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble
                   ]}>
-                    {item.kind === "image" && item.imageUrl ? (
+                    {item.kind === "image" && (item as any).imageUrl ? (
                       <Image
-                        source={{ uri: item.imageUrl }}
+                        source={{ uri: (item as any).imageUrl }}
                         style={{ width: 200, height: 200, borderRadius: 8 }}
                         resizeMode="cover"
                       />
@@ -155,7 +196,7 @@ export default function Room() {
                         styles.messageText,
                         isCurrentUser ? styles.currentUserText : styles.otherUserText
                       ]}>
-                        {item.text}
+                        {(item as any).text}
                       </Text>
                     )}
                   </View>
@@ -165,6 +206,11 @@ export default function Room() {
                   ]}>
                     {new Date(item.createdAt).toLocaleTimeString()}
                   </Text>
+                  {isCurrentUser && (item as any).tempId && (
+                    <Text style={{ fontSize: 11, color: (item as any).status === "failed" ? "#ef4444" : "#999" }}>
+                      {(item as any).status === "failed" ? "Failed" : "Sending…"}
+                    </Text>
+                  )}
                 </View>
               );
             }}
@@ -197,8 +243,37 @@ export default function Room() {
             if (!roomId || !text.trim()) return;
             const messageText = text.trim();
             setText("");
-            const serverId = await send({ roomId: roomId as Id<"rooms">, kind: "text", text: messageText });
-            void serverId;
+
+            const temp: PendingMessage = {
+              tempId: `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+              roomId: String(roomId),
+              senderId: String(me?._id ?? "me"),
+              kind: "text",
+              text: messageText,
+              createdAt: Date.now(),
+              status: "pending",
+            };
+
+            const next = [...cachedMessages, temp].sort((a, b) => a.createdAt - b.createdAt);
+            setCachedMessages(next);
+            await offlineStorage.setRoomMessages(String(roomId), next);
+            await offlineStorage.enqueueOutbox(temp);
+
+            try {
+              await send({ roomId: roomId as Id<"rooms">, kind: "text", text: messageText });
+              const sig = `${temp.senderId}|${temp.createdAt}|${temp.text ?? ""}|${temp.imageUrl ?? ""}`;
+              await offlineStorage.removeFromOutboxBySignature(sig);
+              await offlineStorage.prunePendingFromRoomBySignature(String(roomId), sig);
+              const refreshed = await offlineStorage.getRoomMessages(String(roomId));
+              setCachedMessages(refreshed);
+            } catch {
+              await offlineStorage.markFailedInOutbox(temp.tempId);
+              const updated = (await offlineStorage.getRoomMessages(String(roomId))).map((m: any) =>
+                m.tempId === temp.tempId ? { ...m, status: "failed" } : m
+              );
+              await offlineStorage.setRoomMessages(String(roomId), updated);
+              setCachedMessages(updated);
+            }
           }}
         />
       </View>
@@ -250,16 +325,40 @@ export default function Room() {
                 onPress={async () => {
                   if (!roomId || !imageUrl.trim()) return;
                   try {
+                    const temp: PendingMessage = {
+                      tempId: `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                      roomId: String(roomId),
+                      senderId: String(me?._id ?? "me"),
+                      kind: "image",
+                      imageUrl: imageUrl.trim(),
+                      createdAt: Date.now(),
+                      status: "pending",
+                    };
+                    const next = [...cachedMessages, temp].sort((a, b) => a.createdAt - b.createdAt);
+                    setCachedMessages(next);
+                    await offlineStorage.setRoomMessages(String(roomId), next);
+                    await offlineStorage.enqueueOutbox(temp);
+
                     await send({ 
                       roomId: roomId as Id<"rooms">, 
                       kind: "image", 
                       imageUrl: imageUrl.trim() 
                     });
-                    setShowImageModal(false);
-                    setImageUrl("");
+                    const sig = `${temp.senderId}|${temp.createdAt}|${temp.text ?? ""}|${temp.imageUrl ?? ""}`;
+                    await offlineStorage.removeFromOutboxBySignature(sig);
+                    await offlineStorage.prunePendingFromRoomBySignature(String(roomId), sig);
+                    const refreshed = await offlineStorage.getRoomMessages(String(roomId));
+                    setCachedMessages(refreshed);
                   } catch (e) {
                     console.error("Failed to send image", e);
+                    // mark failed in cache for the last temp message
+                    const all = await offlineStorage.getRoomMessages(String(roomId));
+                    const updated = all.map((m: any) => m.tempId ? { ...m, status: m.tempId ? "failed" : m.status } : m);
+                    await offlineStorage.setRoomMessages(String(roomId), updated);
+                    setCachedMessages(updated);
                   }
+                  setShowImageModal(false);
+                  setImageUrl("");
                 }}
                 style={[styles.modalButton, styles.saveButton]}
               >
